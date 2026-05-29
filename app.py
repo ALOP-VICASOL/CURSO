@@ -3,7 +3,7 @@ import os
 import ssl
 from langchain_groq import ChatGroq
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader, TextLoader
-from langchain_pinecone import PineconeVectorStore
+from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from huggingface_hub import snapshot_download
@@ -20,11 +20,10 @@ os.environ['HF_HUB_DISABLE_SSL_VERIFY'] = '1'
 # Cargar variables de entorno (API Key de Groq)
 load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
 groq_default_model = os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
 
-if not groq_api_key or not pinecone_api_key:
-    st.warning("⚠️ Faltan API Keys en el archivo .env (GROQ_API_KEY o PINECONE_API_KEY).")
+if not groq_api_key:
+    st.warning("⚠️ Falta la API Key de Groq en el archivo .env (GROQ_API_KEY).")
     st.stop()
 
 st.set_page_config(page_title="Groq RAG Agent", layout="wide", page_icon="🤖")
@@ -78,10 +77,9 @@ def get_vector_store(directory): # type: ignore
         st.error(f"El directorio de datos '{directory}' no existe.")
         return None
     
-    index_name = "quickstart"
     embeddings = get_embeddings_model()
 
-    st.info(f"Procesando documentos y sincronizando con Pinecone (índice: {index_name})...")
+    st.info("Procesando documentos y creando base de datos vectorial local...")
     # Cargadores para PDF y Texto
     pdf_loader = DirectoryLoader(directory, glob="**/*.pdf", loader_cls=PyPDFLoader)
     txt_loader = DirectoryLoader(directory, glob="**/*.txt", loader_cls=TextLoader)
@@ -102,18 +100,16 @@ def get_vector_store(directory): # type: ignore
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     splits = text_splitter.split_documents(documents)
     
-    # Sincronización con Pinecone
+    # Creación del almacén vectorial en memoria
     try:
-        vector_store = PineconeVectorStore.from_documents(
+        vector_store = InMemoryVectorStore.from_documents(
             documents=splits,
-            embedding=embeddings,
-            index_name=index_name,
-            pinecone_api_key=pinecone_api_key
+            embedding=embeddings
         )
-        st.success(f"¡Sincronización con Pinecone completada con éxito!")
+        st.success("¡Base de datos vectorial local creada con éxito!")
         return vector_store
     except Exception as e:
-        st.error(f"Error al conectar o subir a Pinecone: {e}")
+        st.error(f"Error al crear el almacén vectorial: {e}")
         return None
 
 
