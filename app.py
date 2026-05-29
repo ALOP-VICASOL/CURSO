@@ -21,6 +21,7 @@ os.environ['HF_HUB_DISABLE_SSL_VERIFY'] = '1'
 load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
+groq_default_model = os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
 
 if not groq_api_key or not pinecone_api_key:
     st.warning("⚠️ Faltan API Keys en el archivo .env (GROQ_API_KEY o PINECONE_API_KEY).")
@@ -33,7 +34,8 @@ st.markdown("---")
 # Configuración en la barra lateral
 with st.sidebar:
     st.header("⚙️ Configuración")
-    model = st.selectbox("Modelo de Groq", ["llama3-8b-8192", "mixtral-8x7b-32768"])
+    model_options = [groq_default_model, "llama-3.3-70b-versatile", "llama3-8b-8192", "mixtral-8x7b-32768"]
+    model = st.selectbox("Modelo de Groq", options=list(dict.fromkeys(model_options)))
     data_path = "./data" # Ruta fija a la carpeta de datos
     process_btn = st.button("🚀 Procesar Archivos")
     
