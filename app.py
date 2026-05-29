@@ -20,7 +20,8 @@ os.environ['HF_HUB_DISABLE_SSL_VERIFY'] = '1'
 # Cargar variables de entorno (API Key de Groq)
 load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
-groq_default_model = os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
+# Limpiar posibles comillas o espacios del nombre del modelo en el .env
+groq_default_model = (os.getenv("GROQ_MODEL_NAME") or "llama-3.3-70b-versatile").strip().strip('"').strip("'")
 
 if not groq_api_key:
     st.warning("⚠️ Falta la API Key de Groq en el archivo .env (GROQ_API_KEY).")
@@ -164,24 +165,28 @@ if "vector_store" in st.session_state:
             # Configuración del recuperador
             retriever = st.session_state.vector_store.as_retriever()
 
-            # Construcción de la cadena usando LCEL (evita por completo langchain.chains)
-            # Esta cadena recupera contexto, mantiene la pregunta original y genera la respuesta
-            rag_chain = (
-                {"context": retriever | format_docs, "input": RunnablePassthrough(), "docs": retriever}
-                | RunnablePassthrough.assign(answer=prompt_template | llm | StrOutputParser())
-            )
-
-            # Ejecutar la cadena
-            response = rag_chain.invoke(prompt)
-            
-            answer = response["answer"]
-            st.markdown(answer)
-            
-            # Mostramos las fuentes usando la clave 'docs' que definimos en la cadena
-            if response.get("docs"):
-                with st.expander("📚 Fuentes consultadas"):
-                    for doc in response["docs"]:
-                        st.write(f"- {os.path.basename(doc.metadata['source'])}")
-            st.session_state.messages.append({"role": "assistant", "content": answer})
+            try:
+                # Recuperamos los documentos de forma explícita para evitar errores de serialización en la cadena
+                docs = retriever.invoke(prompt)
+                context_text = format_docs(docs)
+                
+                # Definimos la cadena de generación simplificada
+                generation_chain = prompt_template | llm | StrOutputParser()
+                
+                # Ejecutar la consulta pasando solo los strings necesarios
+                answer = generation_chain.invoke({"context": context_text, "input": prompt})
+                
+                st.markdown(answer)
+                
+                # Mostrar fuentes
+                if docs:
+                    with st.expander("📚 Fuentes consultadas"):
+                        for doc in docs:
+                            st.write(f"- {os.path.basename(doc.metadata['source'])}")
+                
+                st.session_state.messages.append({"role": "assistant", "content": answer})
+            except Exception as e:
+                st.error(f"Error en la comunicación con Groq: {str(e)}")
+                st.info("Nota: Si el error persiste, verifica que el nombre del modelo sea correcto y que tu API Key sea válida.")
 else:
     st.info("👈 Haz clic en 'Procesar Archivos' para cargar los documentos de la carpeta /data y comenzar.")
